@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fundraiser</title>
+    <script src="https://cdn.jsdelivr.net/npm/ethers@5.6.9/dist/ethers.umd.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f9;
+            padding: 20px;
+        }
+        h1 {
+            color: #333;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: white;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            border-radius: 10px;
+        }
+        .button {
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 0;
+        }
+        .button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        .input-field {
+            padding: 10px;
+            margin: 10px 0;
+            width: 100%;
+            border-radius: 5px;
+            border: 1px solid #ddd;
+        }
+        .result {
+            padding: 10px;
+            background-color: #f1f1f1;
+            margin-top: 20px;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>Fundraiser</h1>
+        <p>Cel zbiórki: <span id="goalAmount"></span> ETH</p>
+        <p>Zebrano: <span id="fundsRaised"></span> ETH</p>
+        
+        <h3>Wpłać Ether</h3>
+        <input id="donationAmount" class="input-field" type="number" placeholder="Kwota (ETH)" step="any">
+        <button class="button" id="donateButton" onclick="donate()">Wpłać</button>
+        
+        <h3>Wypłać środki (tylko właściciel)</h3>
+        <button class="button" id="withdrawButton" onclick="withdraw()">Wypłać środki</button>
+
+        <div class="result">
+            <h3>Informacje o zbiórce:</h3>
+            <p><strong>Saldo kontraktu:</strong> <span id="contractBalance"></span> ETH</p>
+        </div>
+    </div>
+
+    <script>
+        let provider;
+        let signer;
+        let fundraiserContract;
+        let fundraiserAddress = "0xd498bAd1E259B4cAC8444d0c58E32220CA0e6EBf"; // Podaj adres kontraktu
+        let fundraiserABI = [
+            "function getGoal() public view returns (uint256)",
+            "function getFundsRaised() public view returns (uint256)",
+            "function getContractBalance() public view returns (uint256)",
+            "function donate() public payable",
+            "function withdrawFunds() public"
+        ];
+
+        async function init() {
+    // Sprawdzanie, czy istnieje obiekt window.ethereum (Metamask)
+    if (window.ethereum) {
+        // Zainicjowanie provider
+        provider = new ethers.BrowserProvider(window.ethereum);
+        
+        try {
+            // Prośba o dostęp do konta użytkownika
+            await provider.send("eth_requestAccounts", []); // Poproś użytkownika o zgodę na połączenie
+            signer = provider.getSigner(); // Uzyskanie obiektu signer
+            fundraiserContract = new ethers.Contract(fundraiserAddress, fundraiserABI, signer); // Łączenie z kontraktem
+            updateUI(); // Zaktualizowanie interfejsu użytkownika
+        } catch (error) {
+            alert("Użytkownik nie zaakceptował połączenia z portfelem.");
+        }
+    } else {
+        alert("Nie znaleziono portfela Metamask. Zainstaluj Metamask.");
+    }
+}
+
+
+        async function updateUI() {
+            const goal = await fundraiserContract.getGoal();
+            const fundsRaised = await fundraiserContract.getFundsRaised();
+            const contractBalance = await fundraiserContract.getContractBalance();
+
+            document.getElementById("goalAmount").innerText = ethers.formatEther(goal);
+            document.getElementById("fundsRaised").innerText = ethers.formatEther(fundsRaised);
+            document.getElementById("contractBalance").innerText = ethers.formatEther(contractBalance);
+        }
+
+        async function donate() {
+            const donationAmount = document.getElementById("donationAmount").value;
+            if (donationAmount <= 0) {
+                alert("Kwota musi być większa niż 0.");
+                return;
+            }
+            const donationAmountInWei = ethers.parseEther(donationAmount.toString());
+
+            const tx = await fundraiserContract.donate({
+                value: donationAmountInWei
+            });
+
+            await tx.wait();
+            alert("Wpłata została pomyślnie dokonana!");
+            updateUI();
+        }
+
+        async function withdraw() {
+            try {
+                const tx = await fundraiserContract.withdrawFunds();
+                await tx.wait();
+                alert("Środki zostały wypłacone!");
+                updateUI();
+            } catch (error) {
+                alert("Tylko właściciel może wypłacić środki.");
+            }
+        }
+
+        window.onload = init;
+    </script>
+</body>
+</html>
